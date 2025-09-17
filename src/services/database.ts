@@ -1,5 +1,7 @@
-// src/services/database.ts - FIXED DATABASE SERVICE
-const API_BASE_URL = 'http://localhost:5000/api';
+// src/services/database.ts - UPDATED FOR PRODUCTION
+const API_BASE_URL = process.env.REACT_APP_API_URL 
+  ? `${process.env.REACT_APP_API_URL}/api` 
+  : 'https://mugesh-backend.vercel.app/api';
 
 // Get auth token from localStorage
 const getAuthToken = () => localStorage.getItem('authtoken');
@@ -18,6 +20,7 @@ export const databaseService = {
   async getPeople() {
     try {
       console.log('🔄 Fetching people from database...');
+      console.log('📡 API URL:', API_BASE_URL); // Debug log
       
       const response = await fetch(`${API_BASE_URL}/people`, {
         method: 'GET',
@@ -64,6 +67,7 @@ export const databaseService = {
   async createPerson(personData: any) {
     try {
       console.log('🔄 Adding person to database:', personData.name);
+      console.log('📡 Using API URL:', API_BASE_URL);
       
       const response = await fetch(`${API_BASE_URL}/people`, {
         method: 'POST',
@@ -91,6 +95,7 @@ export const databaseService = {
   async updatePerson(id: string, personData: any) {
     try {
       console.log('🔄 Updating person in database:', id);
+      console.log('📡 Using API URL:', API_BASE_URL);
       
       const response = await fetch(`${API_BASE_URL}/people/${id}`, {
         method: 'PUT',
@@ -105,6 +110,7 @@ export const databaseService = {
         ? { success: true, data: data.data }
         : { success: false, error: data.message || 'Failed to update person' };
     } catch (error: any) {
+      console.error('❌ Database update error:', error.message);
       return { success: false, error: error.message || 'Unknown error' };
     }
   },
@@ -113,6 +119,7 @@ export const databaseService = {
   async deletePerson(id: string) {
     try {
       console.log('🗑️ Deleting person from database:', id);
+      console.log('📡 Using API URL:', API_BASE_URL);
       
       const response = await fetch(`${API_BASE_URL}/people/${id}`, {
         method: 'DELETE',
@@ -126,6 +133,7 @@ export const databaseService = {
         ? { success: true }
         : { success: false, error: data.message || 'Failed to delete person' };
     } catch (error: any) {
+      console.error('❌ Database delete error:', error.message);
       return { success: false, error: error.message || 'Unknown error' };
     }
   },
@@ -134,6 +142,7 @@ export const databaseService = {
   async syncFromGoogleSheets(peopleData: any[]) {
     try {
       console.log('🔄 Syncing', peopleData.length, 'people from Google Sheets to database...');
+      console.log('📡 Using API URL:', API_BASE_URL);
       
       const response = await fetch(`${API_BASE_URL}/people/sync`, {
         method: 'POST',
