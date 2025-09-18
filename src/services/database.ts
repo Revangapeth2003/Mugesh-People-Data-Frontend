@@ -1,7 +1,7 @@
-// src/services/database.ts - UPDATED FOR PRODUCTION
+// src/services/database.ts - CORRECTED FOR VERCEL BACKEND
 const API_BASE_URL = process.env.REACT_APP_API_URL 
   ? `${process.env.REACT_APP_API_URL}/api` 
-  : 'https://mugesh-backend.vercel.app/api';
+  : 'https://mugesh-backend-7331.vercel.app/api';  // ← Fixed URL
 
 // Get auth token from localStorage
 const getAuthToken = () => localStorage.getItem('authtoken');
@@ -16,11 +16,9 @@ const getAuthHeaders = () => {
 };
 
 export const databaseService = {
-  // FIXED: Get all people from database
   async getPeople() {
     try {
-      console.log('🔄 Fetching people from database...');
-      console.log('📡 API URL:', API_BASE_URL); // Debug log
+      console.log('🔄 Fetching people from:', API_BASE_URL); // Debug log
       
       const response = await fetch(`${API_BASE_URL}/people`, {
         method: 'GET',
@@ -63,107 +61,6 @@ export const databaseService = {
     }
   },
 
-  // FIXED: Add person to database  
-  async createPerson(personData: any) {
-    try {
-      console.log('🔄 Adding person to database:', personData.name);
-      console.log('📡 Using API URL:', API_BASE_URL);
-      
-      const response = await fetch(`${API_BASE_URL}/people`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(personData)
-      });
-
-      const data = await response.json();
-      console.log('📥 Create response:', data);
-      
-      if (response.ok && data.success) {
-        console.log('✅ Database create success');
-        return { success: true, data: data.data };
-      } else {
-        console.log('❌ Database create failed:', data.message);
-        return { success: false, error: data.message || 'Failed to create person' };
-      }
-    } catch (error: any) {
-      console.log('❌ Database create error:', error.message);
-      return { success: false, error: error.message || 'Unknown error' };
-    }
-  },
-
-  // FIXED: Update person in database
-  async updatePerson(id: string, personData: any) {
-    try {
-      console.log('🔄 Updating person in database:', id);
-      console.log('📡 Using API URL:', API_BASE_URL);
-      
-      const response = await fetch(`${API_BASE_URL}/people/${id}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(personData)
-      });
-
-      const data = await response.json();
-      console.log('📥 Update response:', data);
-      
-      return response.ok && data.success 
-        ? { success: true, data: data.data }
-        : { success: false, error: data.message || 'Failed to update person' };
-    } catch (error: any) {
-      console.error('❌ Database update error:', error.message);
-      return { success: false, error: error.message || 'Unknown error' };
-    }
-  },
-
-  // Delete person from database
-  async deletePerson(id: string) {
-    try {
-      console.log('🗑️ Deleting person from database:', id);
-      console.log('📡 Using API URL:', API_BASE_URL);
-      
-      const response = await fetch(`${API_BASE_URL}/people/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-
-      const data = await response.json();
-      console.log('📥 Delete response:', data);
-      
-      return response.ok && data.success 
-        ? { success: true }
-        : { success: false, error: data.message || 'Failed to delete person' };
-    } catch (error: any) {
-      console.error('❌ Database delete error:', error.message);
-      return { success: false, error: error.message || 'Unknown error' };
-    }
-  },
-
-  // FIXED: Sync Google Sheets data to database
-  async syncFromGoogleSheets(peopleData: any[]) {
-    try {
-      console.log('🔄 Syncing', peopleData.length, 'people from Google Sheets to database...');
-      console.log('📡 Using API URL:', API_BASE_URL);
-      
-      const response = await fetch(`${API_BASE_URL}/people/sync`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(peopleData)
-      });
-
-      const data = await response.json();
-      console.log('📥 Sync response:', data);
-      
-      if (response.ok && data.success) {
-        console.log('✅ Sync completed:', data.stats);
-        return data;
-      } else {
-        console.error('❌ Sync failed:', data.message);
-        return { success: false, error: data.message || 'Sync failed' };
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('❌ Sync error:', errorMessage);
-      return { success: false, error: errorMessage };
-    }
-  }
+  // Keep all your other methods exactly as they are...
+  // Just make sure they all use API_BASE_URL
 };

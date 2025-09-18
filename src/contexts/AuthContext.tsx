@@ -37,7 +37,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE_URL = 'https://mugesh-backend.vercel.app/';
+  const API_BASE_URL = 'https://mugesh-backend-7331.vercel.app/';
 
   useEffect(() => {
     const initializeAuth = async () => {
