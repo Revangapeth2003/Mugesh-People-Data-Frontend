@@ -61,9 +61,9 @@ const Register: React.FC = () => {
           <h2 className="text-3xl font-extrabold text-gray-900">
             Create your account
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          {/* <p className="mt-2 text-sm text-gray-600">
             SuperAdmin Management System
-          </p>
+          </p> */}
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>

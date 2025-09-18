@@ -57,7 +57,7 @@ const Login: React.FC = () => {
             Welcome Back
           </h1>
           <p className="text-gray-600 text-sm sm:text-base">
-            Sign in to your Government Portal
+            Sign in to your Portal
           </p>
         </div>
 
