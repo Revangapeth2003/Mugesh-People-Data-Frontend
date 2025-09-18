@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { sheetsService } from '../services/googleSheets';
+import { sheetsService } from '../services/googleSheets'; // FIXED: Named import instead of default
 import Layout from '../components/Layout/Layout';
 import { useForm } from 'react-hook-form';
 import { Plus, Search, Edit, Trash2, X, Save, AlertCircle } from 'lucide-react';
@@ -15,7 +15,7 @@ interface PersonFormData {
   aadharNumber: string;
   panNumber?: string;
   voterIdNumber?: string;
-  gender?: "Male" | "Female" | "Other";
+  gender?: 'Male' | 'Female' | 'Other';
   community: string;
   ward: string;
   address: string;
@@ -23,7 +23,6 @@ interface PersonFormData {
   direction: string;
   caste: string;
   religion: string;
-  // Add index signature for compatibility with Partial<Person>
   [key: string]: unknown;
 }
 
@@ -39,37 +38,22 @@ const People: React.FC = () => {
   const [editData, setEditData] = useState<Partial<Person>>({});
   const [searchTerm, setSearchTerm] = useState('');
 
-  // ENHANCED VALIDATION STATES
-  const [validationErrors, setValidationErrors] = useState<{
-    phone: string;
-    aadharNumber: string;
-    panNumber: string;
-    voterIdNumber: string;
-  }>({
+  // SEPARATED VALIDATION STATES FOR ADD AND EDIT - FIXED
+  const [addValidationErrors, setAddValidationErrors] = useState({
     phone: '',
     aadharNumber: '',
     panNumber: '',
     voterIdNumber: ''
   });
 
-  const [editValidationErrors, setEditValidationErrors] = useState<{
-    phone: string;
-    aadharNumber: string;
-    panNumber: string;
-    voterIdNumber: string;
-  }>({
+  const [editValidationErrors, setEditValidationErrors] = useState({
     phone: '',
     aadharNumber: '',
     panNumber: '',
     voterIdNumber: ''
   });
 
-  const [isValidating, setIsValidating] = useState<{
-    phone: boolean;
-    aadharNumber: boolean;
-    panNumber: boolean;
-    voterIdNumber: boolean;
-  }>({
+  const [isValidating, setIsValidating] = useState({
     phone: false,
     aadharNumber: false,
     panNumber: false,
@@ -77,6 +61,12 @@ const People: React.FC = () => {
   });
 
   const { register, handleSubmit, reset, formState: { errors }, watch } = useForm<PersonFormData>();
+
+  // SAFE STRING CONVERSION HELPER - PREVENTS TRIM ERRORS
+  const safeString = useCallback((value: any): string => {
+    if (value === null || value === undefined || value === 'NA' || value === '') return '';
+    return String(value).trim();
+  }, []);
 
   // Get user direction
   const getUserDirection = useCallback(() => {
@@ -91,7 +81,7 @@ const People: React.FC = () => {
     }
   }, [user]);
 
-  // SIMPLIFIED: Fetch data from Google Sheets only
+  // OPTIMIZED: Fetch data from Google Sheets only - PREVENTS DUPLICATE CALLS
   const fetchData = useCallback(async () => {
     if (!user) return;
     
@@ -102,7 +92,6 @@ const People: React.FC = () => {
       const sheetsResponse = await sheetsService.getPeople();
 
       if (sheetsResponse.success && sheetsResponse.data) {
-        // Fix: Ensure data is always an array before calling convertToPeople
         const dataArray = Array.isArray(sheetsResponse.data) ? sheetsResponse.data : [sheetsResponse.data];
         const convertedData = convertToPeople(dataArray);
         const userDirection = getUserDirection();
@@ -124,12 +113,31 @@ const People: React.FC = () => {
     }
   }, [user, getUserDirection]);
 
+  // FIXED useEffect to prevent duplicate calls
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    let mounted = true;
+    
+    if (!user) return;
+    
+    const loadData = async () => {
+      if (mounted) {
+        await fetchData();
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      mounted = false;
+    };
+  }, [user]); // Only depend on user
 
-  // ENHANCED Validation function with individual field errors
-  const validateUniqueFields = useCallback(async (data: Partial<Person>, excludeId?: string, isEditMode = false) => {
+  // FIXED: Enhanced validation function with SAFE STRING CONVERSION and proper mode separation
+  const validateUniqueFields = useCallback(async (
+    data: Partial<Person>, 
+    excludeId?: string, 
+    isEditMode = false
+  ) => {
     const errors = {
       phone: '',
       aadharNumber: '',
@@ -145,65 +153,63 @@ const People: React.FC = () => {
       voterIdNumber: !!data.voterIdNumber
     });
 
-    // Check Aadhaar number uniqueness - FIXED with proper string comparison
-    if (data.aadharNumber && data.aadharNumber !== "NA" && data.aadharNumber.trim() !== "") {
+    // Check Aadhaar number uniqueness - FIXED with safe string conversion
+    const aadharStr = safeString(data.aadharNumber);
+    if (aadharStr && aadharStr !== '') {
       const aadharDuplicate = people.find(person => 
         person.id !== excludeId && 
-        String(person.aadharNumber).trim() === String(data.aadharNumber).trim() &&
-        person.aadharNumber !== "NA" && 
-        person.aadharNumber !== ""
+        safeString(person.aadharNumber) === aadharStr &&
+        safeString(person.aadharNumber) !== ''
       );
       if (aadharDuplicate) {
         errors.aadharNumber = `Already registered for ${aadharDuplicate.name}`;
       }
     }
 
-    // Check PAN number uniqueness
-    if (data.panNumber && data.panNumber !== "NA" && data.panNumber.trim() !== "") {
-      const panUpper = data.panNumber.toUpperCase().trim();
+    // Check PAN number uniqueness - FIXED with safe string conversion
+    const panStr = safeString(data.panNumber).toUpperCase();
+    if (panStr && panStr !== '') {
       const panDuplicate = people.find(person => 
         person.id !== excludeId && 
-        String(person.panNumber || "").toUpperCase().trim() === panUpper &&
-        person.panNumber !== "NA" && 
-        person.panNumber !== ""
+        safeString(person.panNumber || '').toUpperCase() === panStr &&
+        safeString(person.panNumber || '') !== ''
       );
       if (panDuplicate) {
         errors.panNumber = `Already registered for ${panDuplicate.name}`;
       }
     }
 
-    // Check Voter ID uniqueness
-    if (data.voterIdNumber && data.voterIdNumber !== "NA" && data.voterIdNumber.trim() !== "") {
-      const voterIdUpper = data.voterIdNumber.toUpperCase().trim();
+    // Check Voter ID uniqueness - FIXED with safe string conversion
+    const voterIdStr = safeString(data.voterIdNumber).toUpperCase();
+    if (voterIdStr && voterIdStr !== '') {
       const voterIdDuplicate = people.find(person => 
         person.id !== excludeId && 
-        String(person.voterIdNumber || "").toUpperCase().trim() === voterIdUpper &&
-        person.voterIdNumber !== "NA" && 
-        person.voterIdNumber !== ""
+        safeString(person.voterIdNumber || '').toUpperCase() === voterIdStr &&
+        safeString(person.voterIdNumber || '') !== ''
       );
       if (voterIdDuplicate) {
         errors.voterIdNumber = `Already registered for ${voterIdDuplicate.name}`;
       }
     }
 
-    // Check Phone number uniqueness
-    if (data.phone && data.phone !== "NA" && data.phone.trim() !== "") {
+    // Check Phone number uniqueness - FIXED with safe string conversion
+    const phoneStr = safeString(data.phone);
+    if (phoneStr && phoneStr !== '') {
       const phoneDuplicate = people.find(person => 
         person.id !== excludeId && 
-        String(person.phone).trim() === String(data.phone).trim() &&
-        person.phone !== "NA" && 
-        person.phone !== ""
+        safeString(person.phone) === phoneStr &&
+        safeString(person.phone) !== ''
       );
       if (phoneDuplicate) {
         errors.phone = `Already registered for ${phoneDuplicate.name}`;
       }
     }
 
-    // Set validation errors - FIXED: Properly set edit validation errors
+    // FIXED: Set validation errors to the correct state based on mode
     if (isEditMode) {
       setEditValidationErrors(errors);
     } else {
-      setValidationErrors(errors);
+      setAddValidationErrors(errors);
     }
 
     // Clear validating states
@@ -217,7 +223,7 @@ const People: React.FC = () => {
     }, 300);
 
     return Object.values(errors).filter(error => error !== '');
-  }, [people]);
+  }, [people, safeString]);
 
   // IMPROVED: Create person in Google Sheets only
   const onSubmit = async (data: PersonFormData) => {
@@ -238,15 +244,14 @@ const People: React.FC = () => {
         assignedDirection = user.direction;
       }
 
-      // Fix: Ensure all required fields are properly typed
       const personData: Person = {
         ...data,
         id: `person_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         direction: assignedDirection,
         createdBy: user?.email || 'unknown@example.com',
-        panNumber: data.panNumber?.toUpperCase() || '',
-        voterIdNumber: data.voterIdNumber?.toUpperCase() || '',
-        gender: (data.gender?.trim() as "Male" | "Female" | "Other") || "Other",
+        panNumber: safeString(data.panNumber).toUpperCase() || '',
+        voterIdNumber: safeString(data.voterIdNumber).toUpperCase() || '',
+        gender: (safeString(data.gender) as 'Male' | 'Female' | 'Other') || 'Other',
         createdAt: new Date().toISOString()
       };
 
@@ -258,8 +263,7 @@ const People: React.FC = () => {
         setPeople(prev => [personData, ...prev]);
         setShowModal(false);
         reset();
-        // Clear validation errors
-        setValidationErrors({
+        setAddValidationErrors({
           phone: '',
           aadharNumber: '',
           panNumber: '',
@@ -279,14 +283,14 @@ const People: React.FC = () => {
     }
   };
 
-  // IMPROVED: Update person in Google Sheets only
+  // FIXED: Update person in Google Sheets only - SAFE STRING CONVERSION
   const updatePerson = async (personId: string) => {
     if (!editData || !personId || submitting) return;
 
     try {
       setSubmitting(true);
 
-      // Validate unique fields (excluding current person) - FIXED: Pass isEditMode = true
+      // Validate unique fields excluding current person - Pass isEditMode=true
       const validationErrorsArray = await validateUniqueFields(editData, personId, true);
       if (validationErrorsArray.length > 0) {
         return; // Stop update if validation fails
@@ -294,33 +298,40 @@ const People: React.FC = () => {
 
       console.log('🔄 Updating person:', personId, editData);
 
-      // Fix: Normalize data with proper type handling
+      // Fix: Normalize data with safe type handling - THIS FIXES THE TRIM ERROR
       const normalizedData: Partial<Person> = {
         ...editData,
-        panNumber: editData.panNumber ? String(editData.panNumber).toUpperCase() : undefined,
-        voterIdNumber: editData.voterIdNumber ? String(editData.voterIdNumber).toUpperCase() : undefined,
-        gender: editData.gender ? (String(editData.gender).trim() as "Male" | "Female" | "Other") : "Other"
+        panNumber: editData.panNumber ? safeString(editData.panNumber).toUpperCase() : undefined,
+        voterIdNumber: editData.voterIdNumber ? safeString(editData.voterIdNumber).toUpperCase() : undefined,
+        gender: editData.gender ? (safeString(editData.gender) as 'Male' | 'Female' | 'Other') : 'Other',
+        // Ensure all string fields are properly converted
+        name: editData.name ? safeString(editData.name) : undefined,
+        phone: editData.phone ? safeString(editData.phone) : undefined,
+        aadharNumber: editData.aadharNumber ? safeString(editData.aadharNumber) : undefined,
+        community: editData.community ? safeString(editData.community) : undefined,
+        ward: editData.ward ? safeString(editData.ward) : undefined,
+        address: editData.address ? safeString(editData.address) : undefined,
+        street: editData.street ? safeString(editData.street) : undefined,
+        caste: editData.caste ? safeString(editData.caste) : undefined,
+        religion: editData.religion ? safeString(editData.religion) : undefined
       };
 
       const sheetsResult = await sheetsService.updatePerson(personId, normalizedData);
 
       if (sheetsResult.success) {
-        // Fix: Ensure state update maintains proper types
         setPeople(prev => prev.map(p => 
           p.id === personId 
             ? { 
                 ...p, 
                 ...normalizedData,
-                // Ensure required fields are never undefined
-                panNumber: normalizedData.panNumber || p.panNumber || "",
-                voterIdNumber: normalizedData.voterIdNumber || p.voterIdNumber || "",
+                panNumber: normalizedData.panNumber || p.panNumber || '',
+                voterIdNumber: normalizedData.voterIdNumber || p.voterIdNumber || '',
                 gender: normalizedData.gender || p.gender
               } 
             : p
         ));
         setEditingId(null);
         setEditData({});
-        // Clear validation errors
         setEditValidationErrors({
           phone: '',
           aadharNumber: '',
@@ -375,7 +386,6 @@ const People: React.FC = () => {
     }
     setEditingId(person.id!);
     setEditData({ ...person });
-    // Clear validation errors
     setEditValidationErrors({
       phone: '',
       aadharNumber: '',
@@ -387,7 +397,6 @@ const People: React.FC = () => {
   const cancelEdit = () => {
     setEditingId(null);
     setEditData({});
-    // Clear validation errors
     setEditValidationErrors({
       phone: '',
       aadharNumber: '',
@@ -404,30 +413,44 @@ const People: React.FC = () => {
     }
   };
 
-  // ENHANCED Real-time validation for ADD form
+  // ENHANCED Real-time validation for ADD form with proper debouncing
   const watchedValues = watch();
   useEffect(() => {
-    if (showModal && (watchedValues.aadharNumber || watchedValues.panNumber || watchedValues.voterIdNumber || watchedValues.phone)) {
-      // Debounce validation to avoid too many checks
-      const timeoutId = setTimeout(() => {
-        validateUniqueFields(watchedValues as Partial<Person>, undefined, false);
-      }, 500);
+    if (!showModal) return;
 
-      return () => clearTimeout(timeoutId);
-    }
-  }, [watchedValues.aadharNumber, watchedValues.panNumber, watchedValues.voterIdNumber, watchedValues.phone, validateUniqueFields, showModal]);
+    const fieldsToValidate = ['aadharNumber', 'panNumber', 'voterIdNumber', 'phone'];
+    const hasValuesToValidate = fieldsToValidate.some(field => 
+      watchedValues[field as keyof PersonFormData] && 
+      safeString(watchedValues[field as keyof PersonFormData]) !== ''
+    );
 
-  // FIXED: Real-time validation for EDIT mode - this was missing proper setup
+    if (!hasValuesToValidate) return;
+
+    const timeoutId = setTimeout(() => {
+      validateUniqueFields(watchedValues as Partial<Person>, undefined, false);
+    }, 800); // Increased debounce time
+
+    return () => clearTimeout(timeoutId);
+  }, [watchedValues.aadharNumber, watchedValues.panNumber, watchedValues.voterIdNumber, watchedValues.phone, validateUniqueFields, showModal, safeString]);
+
+  // FIXED: Real-time validation for EDIT mode
   useEffect(() => {
-    if (editingId && editData && (editData.aadharNumber || editData.panNumber || editData.voterIdNumber || editData.phone)) {
-      // Debounce validation to avoid too many checks
-      const timeoutId = setTimeout(() => {
-        validateUniqueFields(editData, editingId, true); // FIXED: Pass isEditMode = true
-      }, 500);
+    if (!editingId || !editData) return;
 
-      return () => clearTimeout(timeoutId);
-    }
-  }, [editData?.aadharNumber, editData?.panNumber, editData?.voterIdNumber, editData?.phone, editingId, validateUniqueFields]);
+    const fieldsToValidate = ['aadharNumber', 'panNumber', 'voterIdNumber', 'phone'];
+    const hasValuesToValidate = fieldsToValidate.some(field => 
+      editData[field as keyof Person] && 
+      safeString(editData[field as keyof Person]) !== ''
+    );
+
+    if (!hasValuesToValidate) return;
+
+    const timeoutId = setTimeout(() => {
+      validateUniqueFields(editData, editingId, true); // Pass isEditMode=true
+    }, 800);
+
+    return () => clearTimeout(timeoutId);
+  }, [editData?.aadharNumber, editData?.panNumber, editData?.voterIdNumber, editData?.phone, editingId, validateUniqueFields, safeString]);
 
   // Filtered people for search
   const filteredPeople = useMemo(() => {
@@ -442,7 +465,7 @@ const People: React.FC = () => {
         person.address,
         person.street,
         person.direction,
-        String(person.aadharNumber),
+        person.aadharNumber,
         person.panNumber,
         person.voterIdNumber,
         person.religion,
@@ -453,14 +476,14 @@ const People: React.FC = () => {
       ];
       
       return searchableFields.some(field => {
-        const fieldStr = field && field !== null && field !== 'N/A' ? String(field).toLowerCase().trim() : '';
-        return fieldStr.includes(searchLower);
+        const fieldStr = safeString(field);
+        return fieldStr.toLowerCase().includes(searchLower);
       });
     });
-  }, [people, searchTerm]);
+  }, [people, searchTerm, safeString]);
 
   // Helper functions
-  const hasValidationErrors = Object.values(validationErrors).some(error => error !== '');
+  const hasAddValidationErrors = Object.values(addValidationErrors).some(error => error !== '');
   const hasEditValidationErrors = Object.values(editValidationErrors).some(error => error !== '');
   const isStillValidating = Object.values(isValidating).some(validating => validating);
 
@@ -483,7 +506,7 @@ const People: React.FC = () => {
     <Layout>
       <div style={{ padding: '16px', maxWidth: '100%', margin: '0 auto' }}>
         
-        {/* SIMPLIFIED HEADER */}
+        {/* HEADER */}
         <div style={{ display: 'flex', flexDirection: window.innerWidth < 768 ? 'column' : 'row', justifyContent: 'space-between', alignItems: window.innerWidth < 768 ? 'stretch' : 'center', marginBottom: '24px', gap: '16px' }}>
           <div>
             <h1 style={{ fontSize: window.innerWidth < 768 ? '24px' : '30px', fontWeight: 'bold', color: '#1f2937', margin: '0' }}>
@@ -498,7 +521,6 @@ const People: React.FC = () => {
           </div>
           
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            {/* ADD PERSON BUTTON */}
             <button 
               onClick={() => setShowModal(true)}
               disabled={submitting}
@@ -614,12 +636,12 @@ const People: React.FC = () => {
                         {isEditing ? (
                           <input 
                             type="text"
-                            value={editData.name || ''}
+                            value={safeString(editData.name)}
                             onChange={e => handleEditChange('name', e.target.value)}
                             style={{ width: '100%', padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '12px' }}
                           />
                         ) : (
-                          <span style={{ fontWeight: '500' }}>{person.name || 'N/A'}</span>
+                          <span style={{ fontWeight: '500' }}>{safeString(person.name) || 'NA'}</span>
                         )}
                       </td>
 
@@ -629,7 +651,7 @@ const People: React.FC = () => {
                           <div>
                             <input 
                               type="tel"
-                              value={editData.phone || ''}
+                              value={safeString(editData.phone)}
                               onChange={e => handleEditChange('phone', e.target.value)}
                               style={{ 
                                 width: '100%', 
@@ -647,8 +669,13 @@ const People: React.FC = () => {
                             )}
                           </div>
                         ) : (
-                          <span style={{ fontFamily: 'monospace', backgroundColor: person.phone !== 'N/A' ? '#dcfce7' : '#fecaca', padding: '2px 4px', borderRadius: '4px' }}>
-                            {person.phone || 'N/A'}
+                          <span style={{ 
+                            fontFamily: 'monospace', 
+                            backgroundColor: safeString(person.phone) ? '#dcfce7' : '#fecaca', 
+                            padding: '2px 4px', 
+                            borderRadius: '4px' 
+                          }}>
+                            {safeString(person.phone) || 'NA'}
                           </span>
                         )}
                       </td>
@@ -659,7 +686,7 @@ const People: React.FC = () => {
                           <div>
                             <input 
                               type="text"
-                              value={editData.aadharNumber || ''}
+                              value={safeString(editData.aadharNumber)}
                               onChange={e => handleEditChange('aadharNumber', e.target.value)}
                               style={{ 
                                 width: '100%', 
@@ -679,11 +706,11 @@ const People: React.FC = () => {
                         ) : (
                           <span style={{ 
                             fontFamily: 'monospace', 
-                            backgroundColor: person.aadharNumber && person.aadharNumber !== 'N/A' ? '#dbeafe' : '#fecaca', 
+                            backgroundColor: safeString(person.aadharNumber) ? '#dbeafe' : '#fecaca', 
                             padding: '2px 4px', 
                             borderRadius: '4px' 
                           }}>
-                            {person.aadharNumber || 'N/A'}
+                            {safeString(person.aadharNumber) || 'NA'}
                           </span>
                         )}
                       </td>
@@ -694,7 +721,7 @@ const People: React.FC = () => {
                           <div>
                             <input 
                               type="text"
-                              value={editData.panNumber || ''}
+                              value={safeString(editData.panNumber)}
                               onChange={e => handleEditChange('panNumber', e.target.value.toUpperCase())}
                               style={{ 
                                 width: '100%', 
@@ -715,11 +742,11 @@ const People: React.FC = () => {
                         ) : (
                           <span style={{ 
                             fontFamily: 'monospace', 
-                            backgroundColor: person.panNumber && person.panNumber !== 'N/A' ? '#fef3c7' : '#fecaca', 
+                            backgroundColor: safeString(person.panNumber) ? '#fef3c7' : '#fecaca', 
                             padding: '2px 4px', 
                             borderRadius: '4px' 
                           }}>
-                            {person.panNumber || 'N/A'}
+                            {safeString(person.panNumber) || 'NA'}
                           </span>
                         )}
                       </td>
@@ -730,7 +757,7 @@ const People: React.FC = () => {
                           <div>
                             <input 
                               type="text"
-                              value={editData.voterIdNumber || ''}
+                              value={safeString(editData.voterIdNumber)}
                               onChange={e => handleEditChange('voterIdNumber', e.target.value.toUpperCase())}
                               style={{ 
                                 width: '100%', 
@@ -751,11 +778,11 @@ const People: React.FC = () => {
                         ) : (
                           <span style={{ 
                             fontFamily: 'monospace', 
-                            backgroundColor: person.voterIdNumber && person.voterIdNumber !== 'N/A' ? '#fce7f3' : '#fecaca', 
+                            backgroundColor: safeString(person.voterIdNumber) ? '#fce7f3' : '#fecaca', 
                             padding: '2px 4px', 
                             borderRadius: '4px' 
                           }}>
-                            {person.voterIdNumber || 'N/A'}
+                            {safeString(person.voterIdNumber) || 'NA'}
                           </span>
                         )}
                       </td>
@@ -764,7 +791,7 @@ const People: React.FC = () => {
                       <td style={{ padding: '8px', fontSize: '12px' }}>
                         {isEditing ? (
                           <select 
-                            value={editData.gender || ''}
+                            value={safeString(editData.gender)}
                             onChange={e => handleEditChange('gender', e.target.value)}
                             style={{ width: '100%', padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '12px' }}
                           >
@@ -782,7 +809,7 @@ const People: React.FC = () => {
                             backgroundColor: person.gender === 'Male' ? '#dbeafe' : person.gender === 'Female' ? '#fce7f3' : '#f3f4f6',
                             color: person.gender === 'Male' ? '#1e40af' : person.gender === 'Female' ? '#be185d' : '#374151'
                           }}>
-                            {person.gender || 'N/A'}
+                            {safeString(person.gender) || 'NA'}
                           </span>
                         )}
                       </td>
@@ -791,7 +818,7 @@ const People: React.FC = () => {
                       <td style={{ padding: '8px', fontSize: '12px' }}>
                         {isEditing ? (
                           <select 
-                            value={editData.community || ''}
+                            value={safeString(editData.community)}
                             onChange={e => handleEditChange('community', e.target.value)}
                             style={{ width: '100%', padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '12px' }}
                           >
@@ -811,7 +838,7 @@ const People: React.FC = () => {
                             backgroundColor: person.community === 'General' ? '#dcfce7' : person.community === 'OBC' ? '#fef3c7' : person.community === 'SC' ? '#fed7aa' : person.community === 'ST' ? '#fecaca' : '#f3f4f6',
                             color: person.community === 'General' ? '#166534' : person.community === 'OBC' ? '#92400e' : person.community === 'SC' ? '#c2410c' : person.community === 'ST' ? '#dc2626' : '#374151'
                           }}>
-                            {person.community || 'N/A'}
+                            {safeString(person.community) || 'NA'}
                           </span>
                         )}
                       </td>
@@ -821,13 +848,13 @@ const People: React.FC = () => {
                         {isEditing ? (
                           <input 
                             type="text"
-                            value={editData.ward || ''}
+                            value={safeString(editData.ward)}
                             onChange={e => handleEditChange('ward', e.target.value)}
                             style={{ width: '100%', padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '12px' }}
                           />
                         ) : (
                           <span style={{ backgroundColor: '#f3f4f6', padding: '2px 4px', borderRadius: '4px' }}>
-                            {person.ward || 'N/A'}
+                            {safeString(person.ward) || 'NA'}
                           </span>
                         )}
                       </td>
@@ -842,11 +869,11 @@ const People: React.FC = () => {
                           backgroundColor: person.direction === 'East' ? '#dbeafe' : person.direction === 'West' ? '#dcfce7' : person.direction === 'North' ? '#fef3c7' : '#fecaca',
                           color: person.direction === 'East' ? '#1e40af' : person.direction === 'West' ? '#166534' : person.direction === 'North' ? '#92400e' : '#dc2626'
                         }}>
-                          {person.direction}
+                          {safeString(person.direction) || 'NA'}
                         </span>
                       </td>
 
-                      {/* ACTIONS - FIXED: Check hasEditValidationErrors for save button */}
+                      {/* ACTIONS */}
                       <td style={{ padding: '8px', fontSize: '12px' }}>
                         <div style={{ display: 'flex', gap: '4px' }}>
                           {isEditing ? (
@@ -930,7 +957,7 @@ const People: React.FC = () => {
                   <button 
                     onClick={() => {
                       setShowModal(false); 
-                      setValidationErrors({
+                      setAddValidationErrors({
                         phone: '',
                         aadharNumber: '',
                         panNumber: '',
@@ -973,11 +1000,11 @@ const People: React.FC = () => {
                         style={{ 
                           width: '100%', 
                           padding: '8px 12px', 
-                          border: validationErrors.phone ? '2px solid #dc2626' : '1px solid #d1d5db', 
+                          border: addValidationErrors.phone ? '2px solid #dc2626' : '1px solid #d1d5db', 
                           borderRadius: '6px', 
                           fontSize: '14px', 
                           boxSizing: 'border-box',
-                          backgroundColor: validationErrors.phone ? '#fef2f2' : 'white'
+                          backgroundColor: addValidationErrors.phone ? '#fef2f2' : 'white'
                         }}
                         placeholder="10-digit phone number"
                       />
@@ -994,7 +1021,7 @@ const People: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    {validationErrors.phone && (
+                    {addValidationErrors.phone && (
                       <div style={{ 
                         display: 'flex', 
                         alignItems: 'center', 
@@ -1003,7 +1030,7 @@ const People: React.FC = () => {
                         fontSize: '12px' 
                       }}>
                         <AlertCircle size={12} style={{ marginRight: '4px' }} />
-                        {validationErrors.phone}
+                        {addValidationErrors.phone}
                       </div>
                     )}
                     {errors.phone && (
@@ -1029,11 +1056,11 @@ const People: React.FC = () => {
                         style={{ 
                           width: '100%', 
                           padding: '8px 12px', 
-                          border: validationErrors.aadharNumber ? '2px solid #dc2626' : '1px solid #d1d5db', 
+                          border: addValidationErrors.aadharNumber ? '2px solid #dc2626' : '1px solid #d1d5db', 
                           borderRadius: '6px', 
                           fontSize: '14px', 
                           boxSizing: 'border-box',
-                          backgroundColor: validationErrors.aadharNumber ? '#fef2f2' : 'white'
+                          backgroundColor: addValidationErrors.aadharNumber ? '#fef2f2' : 'white'
                         }}
                         placeholder="123456789012 (12 digits)"
                       />
@@ -1050,7 +1077,7 @@ const People: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    {validationErrors.aadharNumber && (
+                    {addValidationErrors.aadharNumber && (
                       <div style={{ 
                         display: 'flex', 
                         alignItems: 'center', 
@@ -1059,7 +1086,7 @@ const People: React.FC = () => {
                         fontSize: '12px' 
                       }}>
                         <AlertCircle size={12} style={{ marginRight: '4px' }} />
-                        {validationErrors.aadharNumber}
+                        {addValidationErrors.aadharNumber}
                       </div>
                     )}
                     {errors.aadharNumber && (
@@ -1083,12 +1110,12 @@ const People: React.FC = () => {
                         style={{ 
                           width: '100%', 
                           padding: '8px 12px', 
-                          border: validationErrors.panNumber ? '2px solid #dc2626' : '1px solid #d1d5db', 
+                          border: addValidationErrors.panNumber ? '2px solid #dc2626' : '1px solid #d1d5db', 
                           borderRadius: '6px', 
                           fontSize: '14px', 
                           textTransform: 'uppercase', 
                           boxSizing: 'border-box',
-                          backgroundColor: validationErrors.panNumber ? '#fef2f2' : 'white'
+                          backgroundColor: addValidationErrors.panNumber ? '#fef2f2' : 'white'
                         }}
                         placeholder="ABCDE1234F"
                         maxLength={10}
@@ -1106,7 +1133,7 @@ const People: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    {validationErrors.panNumber && (
+                    {addValidationErrors.panNumber && (
                       <div style={{ 
                         display: 'flex', 
                         alignItems: 'center', 
@@ -1115,7 +1142,7 @@ const People: React.FC = () => {
                         fontSize: '12px' 
                       }}>
                         <AlertCircle size={12} style={{ marginRight: '4px' }} />
-                        {validationErrors.panNumber}
+                        {addValidationErrors.panNumber}
                       </div>
                     )}
                     {errors.panNumber && (
@@ -1139,12 +1166,12 @@ const People: React.FC = () => {
                         style={{ 
                           width: '100%', 
                           padding: '8px 12px', 
-                          border: validationErrors.voterIdNumber ? '2px solid #dc2626' : '1px solid #d1d5db', 
+                          border: addValidationErrors.voterIdNumber ? '2px solid #dc2626' : '1px solid #d1d5db', 
                           borderRadius: '6px', 
                           fontSize: '14px', 
                           textTransform: 'uppercase', 
                           boxSizing: 'border-box',
-                          backgroundColor: validationErrors.voterIdNumber ? '#fef2f2' : 'white'
+                          backgroundColor: addValidationErrors.voterIdNumber ? '#fef2f2' : 'white'
                         }}
                         placeholder="ABC1234567"
                         maxLength={10}
@@ -1162,7 +1189,7 @@ const People: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    {validationErrors.voterIdNumber && (
+                    {addValidationErrors.voterIdNumber && (
                       <div style={{ 
                         display: 'flex', 
                         alignItems: 'center', 
@@ -1171,7 +1198,7 @@ const People: React.FC = () => {
                         fontSize: '12px' 
                       }}>
                         <AlertCircle size={12} style={{ marginRight: '4px' }} />
-                        {validationErrors.voterIdNumber}
+                        {addValidationErrors.voterIdNumber}
                       </div>
                     )}
                     {errors.voterIdNumber && (
@@ -1337,12 +1364,12 @@ const People: React.FC = () => {
                 </div>
 
                 {/* Validation Status Panel */}
-                {(hasValidationErrors || isStillValidating) && (
+                {(hasAddValidationErrors || isStillValidating) && (
                   <div style={{ 
                     marginTop: '16px', 
                     padding: '12px', 
-                    backgroundColor: hasValidationErrors ? '#fef2f2' : '#f0f9ff', 
-                    border: `1px solid ${hasValidationErrors ? '#fca5a5' : '#93c5fd'}`, 
+                    backgroundColor: hasAddValidationErrors ? '#fef2f2' : '#f0f9ff', 
+                    border: `1px solid ${hasAddValidationErrors ? '#fca5a5' : '#93c5fd'}`, 
                     borderRadius: '6px' 
                   }}>
                     {isStillValidating ? (
@@ -1358,7 +1385,7 @@ const People: React.FC = () => {
                         }}></div>
                         Checking for duplicate values...
                       </div>
-                    ) : hasValidationErrors ? (
+                    ) : hasAddValidationErrors ? (
                       <div style={{ display: 'flex', alignItems: 'center', color: '#dc2626' }}>
                         <AlertCircle size={16} style={{ marginRight: '8px' }} />
                         Please fix the unique validation errors above before submitting.
@@ -1373,7 +1400,7 @@ const People: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setShowModal(false); 
-                      setValidationErrors({
+                      setAddValidationErrors({
                         phone: '',
                         aadharNumber: '',
                         panNumber: '',
@@ -1386,15 +1413,15 @@ const People: React.FC = () => {
                   </button>
                   <button 
                     type="submit"
-                    disabled={submitting || hasValidationErrors}
+                    disabled={submitting || hasAddValidationErrors}
                     style={{
                       padding: '8px 16px',
-                      backgroundColor: submitting || hasValidationErrors ? '#9ca3af' : '#2563eb',
+                      backgroundColor: submitting || hasAddValidationErrors ? '#9ca3af' : '#2563eb',
                       color: 'white',
                       border: 'none',
                       borderRadius: '6px',
-                      cursor: submitting || hasValidationErrors ? 'not-allowed' : 'pointer',
-                      opacity: submitting || hasValidationErrors ? 0.7 : 1,
+                      cursor: submitting || hasAddValidationErrors ? 'not-allowed' : 'pointer',
+                      opacity: submitting || hasAddValidationErrors ? 0.7 : 1,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
