@@ -1,4 +1,4 @@
-// src/contexts/AuthContext.tsx - COMPLETE WITH CHANGE PASSWORD
+// src/contexts/AuthContext.tsx - FIXED VERSION
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import type { ReactNode } from 'react';
 
@@ -37,7 +37,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE_URL = 'https://mugesh-backend-7331.vercel.app/';
+  // ✅ FIXED: Correct API URL without trailing slash
+  const API_BASE_URL = 'https://mugesh-backend-7331.vercel.app/api';
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -49,6 +50,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (token) {
           console.log('🔐 Token found, verifying...');
           
+          // ✅ FIXED: Correct endpoint path
           const response = await fetch(`${API_BASE_URL}/auth/verify`, {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -87,63 +89,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const clearError = () => setError(null);
 
-  // Register function (used by SuperAdmin to create new admins)
-  const register = async (email: string, password: string, role: string, direction?: string): Promise<boolean> => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('📝 Registration attempt:', { email, role, direction });
-      
-      const token = localStorage.getItem('auth_token');
-      const requestBody = {
-        email,
-        password,
-        role,
-        direction: role === 'admin' ? direction : undefined
-      };
-      
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        console.log('✅ Registration successful:', data.user.email);
-        
-        // For admin creation by superadmin, don't update current user session
-        if (role !== 'superadmin') {
-          return true;
-        }
-        
-        // Only for superadmin self-registration
-        localStorage.setItem('auth_token', data.token);
-        localStorage.setItem('auth_user', JSON.stringify(data.user));
-        setUser(data.user);
-        
-        return true;
-      } else {
-        console.log('❌ Registration failed:', data.message);
-        setError(data.message || 'Registration failed');
-        return false;
-      }
-      
-    } catch (error: any) {
-      console.error('❌ Registration error:', error);
-      setError('Network error. Please check your connection and try again.');
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Login function
+  // ✅ FIXED: Login function with correct URL
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       setLoading(true);
@@ -151,6 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log('🔐 Login attempt:', email);
       
+      // ✅ FIXED: Correct endpoint URL
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
@@ -164,7 +111,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.ok && data.success) {
         console.log('✅ Login successful:', data.user.email, data.user.role);
         
-        // Store token and user data
         localStorage.setItem('auth_token', data.token);
         localStorage.setItem('auth_user', JSON.stringify(data.user));
         setUser(data.user);
@@ -185,7 +131,62 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Get all users function (for admin management)
+  // ✅ FIXED: Register function with correct URL
+  const register = async (email: string, password: string, role: string, direction?: string): Promise<boolean> => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('📝 Registration attempt:', { email, role, direction });
+      
+      const token = localStorage.getItem('auth_token');
+      const requestBody = {
+        email,
+        password,
+        role,
+        direction: role === 'admin' ? direction : undefined
+      };
+      
+      // ✅ FIXED: Correct endpoint URL
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        console.log('✅ Registration successful:', data.user.email);
+        
+        if (role !== 'superadmin') {
+          return true;
+        }
+        
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('auth_user', JSON.stringify(data.user));
+        setUser(data.user);
+        
+        return true;
+      } else {
+        console.log('❌ Registration failed:', data.message);
+        setError(data.message || 'Registration failed');
+        return false;
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Registration error:', error);
+      setError('Network error. Please check your connection and try again.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ FIXED: Get all users function
   const getAllUsers = async (): Promise<{ success: boolean; users?: User[]; message?: string }> => {
     try {
       const token = localStorage.getItem('auth_token');
@@ -207,7 +208,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const data = await response.json();
         
         if (data.success) {
-          // Map _id to id for frontend compatibility
           const mappedUsers = data.users.map((user: any) => ({
             ...user,
             id: user.id || user._id?.toString() || user._id,
@@ -215,7 +215,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }));
           
           console.log('✅ Users fetched and mapped:', mappedUsers.length);
-          console.log('🔍 Sample user:', mappedUsers[0]);
           
           return { success: true, users: mappedUsers };
         } else {
@@ -232,7 +231,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Update user function
+  // ✅ FIXED: Update user function
   const updateUser = async (userId: string, email: string, direction?: string): Promise<{ success: boolean; message?: string }> => {
     try {
       const token = localStorage.getItem('auth_token');
@@ -247,7 +246,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { success: false, message: 'Invalid user ID' };
       }
       
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      // ✅ FIXED: Correct endpoint URL (note: /api/users, not /api/auth/users)
+      const response = await fetch(`https://mugesh-backend-7331.vercel.app/api/users/${userId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -275,7 +275,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Delete user function
+  // ✅ FIXED: Delete user function
   const deleteUser = async (userId: string): Promise<{ success: boolean; message?: string }> => {
     try {
       const token = localStorage.getItem('auth_token');
@@ -290,7 +290,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { success: false, message: 'Invalid user ID' };
       }
       
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      // ✅ FIXED: Correct endpoint URL
+      const response = await fetch(`https://mugesh-backend-7331.vercel.app/api/users/${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -312,7 +313,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // ✅ CHANGE PASSWORD FUNCTION
+  // ✅ FIXED: Change password function
   const changePassword = async (currentPassword: string, newPassword: string): Promise<{ success: boolean; message?: string }> => {
     try {
       const token = localStorage.getItem('auth_token');
@@ -355,11 +356,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Logout function
   const logout = () => {
     console.log('🚪 Logging out user:', user?.email);
     
-    // Clear all auth data
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
     setUser(null);
@@ -387,7 +386,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
 };
 
-// Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

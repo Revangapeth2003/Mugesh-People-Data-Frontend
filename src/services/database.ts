@@ -1,7 +1,7 @@
 // src/services/database.ts - CORRECTED FOR VERCEL BACKEND
 const API_BASE_URL = process.env.REACT_APP_API_URL 
   ? `${process.env.REACT_APP_API_URL}/api` 
-  : 'https://mugesh-backend-7331.vercel.app/api';  // ← Fixed URL
+  : 'https://mugesh-backend-7331.vercel.app/api';  // ✅ Correct URL
 
 // Get auth token from localStorage
 const getAuthToken = () => localStorage.getItem('authtoken');
